@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>region-snap demo document</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 14px/1.7 "Segoe UI", "Microsoft YaHei", sans-serif;
+      color: #243247;
+      background: #f7f9fc;
+    }
+    main {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 28px 24px 80px;
+      background: #fff;
+      min-height: 2200px;
+      border-left: 1px solid #e6ebf2;
+      border-right: 1px solid #e6ebf2;
+    }
+    .eyebrow {
+      font: 10px Consolas, monospace;
+      letter-spacing: 1.6px;
+      color: #8b97a8;
+      margin-bottom: 10px;
+    }
+    h1 {
+      font-size: 28px;
+      letter-spacing: -.4px;
+      margin: 0 0 12px;
+      font-weight: 650;
+    }
+    .lead { color: #6d7a8c; margin: 0 0 28px; }
+    h2 {
+      font-size: 18px;
+      margin: 36px 0 10px;
+      padding-top: 18px;
+      border-top: 1px solid #edf1f6;
+      font-weight: 600;
+    }
+    p { margin: 0 0 14px; color: #445366; }
+    .card {
+      margin: 18px 0;
+      padding: 16px 18px;
+      background: #f4f7fb;
+      border: 1px solid #e3eaf3;
+      border-radius: 8px;
+    }
+    .card strong { display: block; margin-bottom: 6px; color: #2f4058; }
+    .steps { padding-left: 18px; color: #445366; }
+    .steps li { margin: 8px 0; }
+    .tag {
+      display: inline-block;
+      font: 10px Consolas, monospace;
+      color: #4d6fbe;
+      background: #eaf0ff;
+      border: 1px solid #d5e0f8;
+      border-radius: 4px;
+      padding: 3px 7px;
+      margin-right: 6px;
+    }
+    footer {
+      margin-top: 48px;
+      padding-top: 16px;
+      border-top: 1px solid #edf1f6;
+      font-size: 12px;
+      color: #919bad;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="eyebrow">REGION-SNAP · IFRAME DEMO</div>
+    <h1>跨域预览里的文档，也能框选截图。</h1>
+    <p class="lead">这是嵌入在 iframe 中的演示页。先共享当前标签页，再框选；需要长图时，在选区内缓慢滚动并拼接。</p>
+
+    <div class="card">
+      <strong>为什么需要共享标签页？</strong>
+      浏览器不允许页面脚本读取跨域 iframe 的像素。region-snap 通过共享当前标签页，从屏幕实际画面裁剪选区。
+    </div>
+
+    <h2>01 · 可见区域截图</h2>
+    <p>开启共享后切换到「框选」模式，拖动选中想留下的区域，即可导出当前可见画面。选区框、遮罩和工具栏不会出现在结果里。</p>
+    <p>适合合同预览、Office Online、第三方看板等 html2canvas 无法渲染的内容。</p>
+
+    <h2>02 · 滚动拼接长图</h2>
+    <p>当内容高于一屏时，框选后点击「滚动截图」。iframe 恢复可滚动，在选区内向下滚动，组件会比对相邻帧并拼成一张长图。</p>
+    <ul class="steps">
+      <li>滚动速度适中，保持相邻帧有重叠</li>
+      <li>滚动太快时会提示往回滚一点</li>
+      <li>尽量不要框进吸顶表头或悬浮工具条</li>
+      <li>长图高度上限约 16384 像素</li>
+    </ul>
+
+    <h2>03 · 继续往下滚</h2>
+    <p>下面留出足够高度，方便你体验滚动拼接。每一段都有独立标题，方便对照长图结果。</p>
+    <p><span class="tag">SECTION A</span> 产品更新说明：框选交互、八向调整、边缘自动滚动与触屏长按。</p>
+    <p><span class="tag">SECTION B</span> 输出格式支持 Data URL、Blob 与 File，可直接接入预览、上传或 OCR。</p>
+    <p><span class="tag">SECTION C</span> Vue / React / 原生 JS 同一套核心逻辑，样式自动注入，也可用 CSS 变量覆盖。</p>
+
+    <h2>04 · 更多示例段落</h2>
+    <p>真正的截图发生在浏览器本地。共享期间浏览器会显示「正在共享此标签页」提示条，用完记得停止共享。</p>
+    <p>桌面端 Chrome / Edge 支持该能力，需 HTTPS 或 localhost。只能截到屏幕上可见的部分，盖在选区上的弹窗也会被拍进去。</p>
+    <div class="card">
+      <strong>提示</strong>
+      先在下方多滚一段，确认文档可以滚动；再回到上方开启共享并框选整块内容区域。
+    </div>
+
+    <h2>05 · 附录</h2>
+    <p>附录用于拉长页面。滚动截图时从章节标题滚到页脚，可以清楚看到拼接后的连续内容。</p>
+    <p>Lorem for scroll: alpha, bravo, charlie, delta, echo, foxtrot, golf, hotel, india, juliet, kilo, lima, mike, november, oscar, papa, quebec, romeo, sierra, tango, uniform, victor, whiskey, xray, yankee, zulu.</p>
+    <p>再往下：指标、图表、批注、修订记录、签字栏……这些在真实文档预览里都很常见，也是区域截图最常服务的场景。</p>
+    <p>如果你看到这段文字出现在长图底部，说明滚动拼接已经覆盖了整份演示文档。</p>
+
+    <footer>demo-doc.html · same-origin iframe sample for region-snap website</footer>
+  </main>
+</body>
+</html>

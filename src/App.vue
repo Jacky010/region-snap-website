@@ -1,8 +1,16 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
-import { RegionSnap, type Region, type RegionSnapExpose } from '@region-snap/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { RegionSnap, createScreenCapture, type Region, type RegionSnapExpose } from '@region-snap/vue'
 import Documentation from './Documentation.vue'
 import { languages, locale, t } from './language'
+
+const scenes = [
+  { id: '数据报表', icon: '▥', mode: 'html' },
+  { id: '文章摘录', icon: '≡', mode: 'html' },
+  { id: 'iframe', icon: '⧉', mode: 'iframe' },
+  { id: '滚动长图', icon: '↕', mode: 'scroll' },
+] as const
+type SceneId = typeof scenes[number]['id']
 
 const snap = ref<RegionSnapExpose | null>(null)
 const region = ref<Region | null>(null)
@@ -11,9 +19,17 @@ const error = ref('')
 const dimensions = ref('')
 const copied = ref('')
 const framework = ref('Vue')
-const scene = ref('数据报表')
+const scene = ref<SceneId>('数据报表')
 const page = ref<'home' | 'start' | 'docs'>('home')
 const docTopic = ref('安装')
+const snapping = ref(false)
+const browsing = ref(true)
+const screen = createScreenCapture({ onEnded: () => { snapping.value = false; browsing.value = true } })
+const isScreenScene = computed(() => scene.value === 'iframe' || scene.value === '滚动长图')
+const demoUrl = `${import.meta.env.BASE_URL}demo-doc.html`
+const captureOptions = computed(() => isScreenScene.value ? { renderer: screen.renderer } : undefined)
+const snapDisabled = computed(() => isScreenScene.value && (!snapping.value || browsing.value))
+
 function navigate(value: 'home' | 'start' | 'docs', topic = '安装') {
   page.value = value
   docTopic.value = topic
@@ -56,8 +72,15 @@ async function download() {
     link.click()
   } catch { error.value = t('截图生成失败，请重新框选后再试。') }
 }
+async function finishScroll(finishScrollCapture: () => Promise<string | null>) {
+  try {
+    const src = await finishScrollCapture()
+    if (src) captured(src)
+  } catch { error.value = t('截图生成失败，请重新框选后再试。') }
+}
 async function preset() {
   await nextTick()
+  if (isScreenScene.value) return
   const target = document.querySelector<HTMLElement>('.report-chart')
   const paper = document.querySelector<HTMLElement>('.region-snap__content')
   if (target && paper) {
@@ -66,14 +89,37 @@ async function preset() {
     snap.value?.setRegion({ x: a.left - b.left, y: a.top - b.top, width: a.width, height: a.height })
   }
 }
-async function changeScene(value: string) {
+function exitScreen() {
+  screen.stop()
+  snapping.value = false
+  browsing.value = true
+  snap.value?.clear()
+}
+async function enterScreen() {
+  try {
+    error.value = ''
+    await screen.start()
+    snapping.value = true
+    browsing.value = false
+  } catch {
+    error.value = t('需要授权共享当前标签页后才能截取 iframe。')
+  }
+}
+async function changeScene(value: SceneId) {
+  if (isScreenScene.value && value !== 'iframe' && value !== '滚动长图') exitScreen()
   scene.value = value
   snap.value?.clear()
   preview.value = ''
-  await preset()
+  dimensions.value = ''
+  if (value === 'iframe' || value === '滚动长图') {
+    browsing.value = true
+  } else {
+    await preset()
+  }
 }
-watch(locale, () => { if (page.value === 'home') { snap.value?.clear(); void preset() } })
+watch(locale, () => { if (page.value === 'home' && !isScreenScene.value) { snap.value?.clear(); void preset() } })
 onMounted(preset)
+onBeforeUnmount(() => screen.stop())
 </script>
 
 <template>
@@ -99,9 +145,35 @@ onMounted(preset)
         <div class="workbench-top"><div class="window-dots"><i></i><i></i><i></i></div><span>{{ t("你的下一次截图，从这里开始") }}</span><span class="local-badge"><i></i> {{ t("浏览器本地生成") }}</span></div>
         <div class="workspace">
           <div class="editor">
-            <div class="scene-tabs" :aria-label="t('在线体验')"><button v-for="item in ['数据报表', '文章摘录']" :key="item" :class="{ active: scene === item }" @click="changeScene(item)">{{ item === '数据报表' ? '▥' : '≡' }} &nbsp;{{ t(item) }}</button><button class="scene-doc-button" @click="navigate('docs', '跨域 iframe')">{{ t("iframe / 长截图说明") }}</button></div>
-            <RegionSnap ref="snap" v-model:region="region" class="capture-stage" show-size :clear-on-click-outside="false" @clear="preview = ''; dimensions = ''" @capture="captured" @error="error = t('截图生成失败，请重新框选后再试。')">
-              <div class="paper">
+            <div class="scene-tabs" :aria-label="t('在线体验')">
+              <button v-for="item in scenes" :key="item.id" :class="{ active: scene === item.id }" @click="changeScene(item.id)">{{ item.icon }} &nbsp;{{ t(item.id) }}</button>
+              <button class="scene-doc-button" @click="navigate('docs', '跨域 iframe')">{{ t("说明") }}</button>
+            </div>
+            <div v-if="isScreenScene" class="screen-bar">
+              <p>{{ scene === '滚动长图' ? t('共享标签页后框选，再在选区内滚动以拼接长图。') : t('共享当前标签页后，即可框选截取 iframe 中的内容。') }}</p>
+              <div class="screen-actions">
+                <button v-if="!snapping" class="screen-primary" @click="enterScreen">{{ t('开启标签页共享') }}</button>
+                <template v-else>
+                  <button @click="browsing = !browsing">{{ browsing ? t('开始框选') : t('浏览文档') }}</button>
+                  <button @click="exitScreen">{{ t('结束共享') }}</button>
+                </template>
+              </div>
+            </div>
+            <RegionSnap
+              ref="snap"
+              v-model:region="region"
+              class="capture-stage"
+              show-size
+              :mask="isScreenScene"
+              :disabled="snapDisabled"
+              :capture-options="captureOptions"
+              :clear-on-click-outside="false"
+              @clear="preview = ''; dimensions = ''"
+              @capture="captured"
+              @error="error = t('截图生成失败，请重新框选后再试。')"
+            >
+              <iframe v-if="isScreenScene" class="demo-iframe" :src="demoUrl" :title="t('iframe 演示文档')" />
+              <div v-else class="paper">
                 <div class="paper-meta"><span>ACME STUDIO / INSIGHTS</span><span>NOV 2026</span></div>
                 <template v-if="scene === '数据报表'">
                   <h2>{{ t("每一次增长，都值得记录。") }}</h2><p class="paper-desc">{{ t("2026 年度产品洞察 · 第四季度概览") }}</p>
@@ -115,9 +187,27 @@ onMounted(preset)
                   <p class="paper-bottom">{{ t("试着框选这段文字，保存此刻的灵感。") }}</p>
                 </template>
               </div>
-              <template #toolbar="{ clear, capturing }"><div class="selection-toolbar"><span>✧</span><button :disabled="capturing" @click="download">{{ capturing ? t('生成中…') : t('下载截图 ↓') }}</button><span class="toolbar-separator"></span><button :aria-label="t('清除选区')" @click="clear">×</button></div></template>
+              <template #toolbar="{ clear, capturing, scrollCapture, startScrollCapture, finishScrollCapture, cancelScrollCapture }">
+                <div class="selection-toolbar">
+                  <span>✧</span>
+                  <template v-if="scene === '滚动长图' && scrollCapture">
+                    <span class="scroll-status">{{ scrollCapture.lost ? t('滚动太快，请往回滚一点') : `${t('已拼接')} ${scrollCapture.height}px` }}</span>
+                    <button @click="finishScroll(finishScrollCapture)">{{ t('完成长图') }}</button>
+                    <button @click="cancelScrollCapture()">{{ t('取消') }}</button>
+                  </template>
+                  <template v-else>
+                    <button v-if="scene === '滚动长图'" :disabled="capturing" @click="startScrollCapture()">{{ t('滚动截图') }}</button>
+                    <button :disabled="capturing" @click="download">{{ capturing ? t('生成中…') : t('下载截图 ↓') }}</button>
+                    <span class="toolbar-separator"></span>
+                    <button :aria-label="t('清除选区')" @click="clear">×</button>
+                  </template>
+                </div>
+              </template>
             </RegionSnap>
-            <div class="editor-footer"><span>{{ t("⌖ 拖动框选 · 拖拽角点调整") }}</span><span><kbd>esc</kbd> {{ t("取消选区") }}</span></div>
+            <div class="editor-footer">
+              <span>{{ isScreenScene ? (snapping ? (browsing ? t('⌖ 当前可滚动浏览 iframe') : t('⌖ 拖动框选 · 拖拽角点调整')) : t('⌖ 先开启标签页共享')) : t('⌖ 拖动框选 · 拖拽角点调整') }}</span>
+              <span><kbd>esc</kbd> {{ t("取消选区") }}</span>
+            </div>
           </div>
           <aside class="result"><div class="result-title"><h3>{{ t("截图预览") }}</h3><span :class="{ ready: preview }">{{ preview ? t('已生成') : t('等待框选') }}</span></div><div class="preview-area"><img v-if="preview" :src="preview" :alt="t('当前选区生成的真实截图')"><div v-else class="empty"><span>⌗</span>{{ t("在左侧框选，截图将在这里出现") }}</div></div><div class="result-meta"><span>PNG</span><span>{{ preview ? dimensions : '— × — px' }}</span></div><button class="download-button" :disabled="!region" @click="download">{{ t("下载截图") }} <span>↓</span></button><p class="result-note">{{ t("从选区到图片，只需一次拖动。") }}<br>{{ t("试着移动选区，看看有什么变化。") }}</p><div class="result-bottom"><span>{{ t("✓ 无需上传文件") }}</span><span>{{ t("✓ 即选即用") }}</span></div></aside>
         </div>
